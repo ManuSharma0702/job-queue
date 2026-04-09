@@ -1,7 +1,11 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::Sender;
+
+use crate::queue_service::service::QueuePayload;
 
 #[derive(Deserialize, Debug)]
+#[derive(Eq, Hash, PartialEq)]
 pub enum TaskType {
     Split,
     Ocr,
@@ -41,4 +45,9 @@ impl IntoResponse for JobQueueError {
         };
         (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
     }
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub queue_sender: Sender<QueuePayload>
 }

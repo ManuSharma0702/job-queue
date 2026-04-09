@@ -1,16 +1,26 @@
 use std::{error::Error, time::Duration};
 use axum::{extract::Query, routing::{get, post}, Json, Router};
 
-use crate::server::value::{GetQueryParams, JobQueueError, Task};
+use crate::{queue_service::{self, service::QueueService}, server::value::{AppState, GetQueryParams, JobQueueError, Task}};
 
 pub async fn run() -> Result<(), Box<dyn Error>> {
     //Initialise queue service, with three queue for each task type.
     //Pass the queue service as a state
+    let mut qs = QueueService::new();
+    let sender = qs.get_sender();
+    tokio::spawn(async move {
+        qs.execute().await;
+    });
+
+    let state = AppState {
+        queue_sender: sender
+    };
+
     let app = Router::new()
         .route("/", get(handle_root))
         .route("/task", get(get_task))
-        .route("/push", post(push_task));
-
+        .route("/push", post(push_task))
+        .with_state(state);
     
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
     println!("Job Queue running on 127.0.0.1:8080...");
