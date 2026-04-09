@@ -1,7 +1,7 @@
-use std::{error::Error, time::Duration};
+use std::error::Error;
 use axum::{extract::Query, routing::{get, post}, Json, Router};
 
-use crate::{queue_service::{self, service::QueueService}, server::value::{AppState, GetQueryParams, JobQueueError, Task}};
+use crate::{queue_service::{service::QueueService}, server::value::{AppState, GetQueryParams, JobQueueError, Task}};
 
 pub async fn run() -> Result<(), Box<dyn Error>> {
     //Initialise queue service, with three queue for each task type.
