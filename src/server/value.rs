@@ -18,7 +18,7 @@ pub struct GetQueryParams {
     pub timeout: i32
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(tag = "task_type", rename_all = "lowercase")]
 pub enum Task {
     Split {
@@ -30,7 +30,9 @@ pub enum Task {
         file_url: String,
         page_number: u32
     },
-    Aggregate 
+    Aggregate  {
+        job_id: String
+    }
 }
 
 pub enum JobQueueError {
