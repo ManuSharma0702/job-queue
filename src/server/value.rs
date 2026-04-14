@@ -6,6 +6,7 @@ use crate::queue_service::service::QueuePayload;
 
 #[derive(Deserialize, Debug, Clone)]
 #[derive(Eq, Hash, PartialEq)]
+#[serde(rename_all="lowercase")]
 pub enum TaskType {
     Split,
     Ocr,
