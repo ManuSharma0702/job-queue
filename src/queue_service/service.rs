@@ -79,6 +79,7 @@ impl QueueService {
         let queue = self.queues.get_mut(&task_type).ok_or(QueueServiceError::QueueNotFound)?;
         let retry_left = task.get_retry();
         if retry_left == 0 {
+            //TODO: Update the status of task in DB to failed
             queue.failed.push_back(task);
             return Ok(());
         }
