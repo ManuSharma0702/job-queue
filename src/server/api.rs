@@ -1,7 +1,8 @@
-use std::error::Error;
-use axum::{extract::Query, routing::{get, post}, Json, Router};
+use std::{error::Error, time::Duration};
+use axum::{Json, Router, extract::{Query, State}, http::StatusCode, routing::{get, post}};
+use tokio::sync::oneshot;
 
-use crate::{queue_service::{service::QueueService}, server::value::{AppState, GetQueryParams, JobQueueError, Task}};
+use crate::{queue_service::service::{QueueOperation, QueuePayload, QueueService}, server::value::{AppState, GetQueryParams, JobQueueError, Task, TaskType}};
 
 pub async fn run() -> Result<(), Box<dyn Error>> {
     //Initialise queue service, with three queue for each task type.
@@ -33,23 +34,57 @@ async fn handle_root() -> &'static str {
 }
 
 async fn get_task(
-    Query(params): Query<GetQueryParams>
+    State(state): State<AppState>,
+    Query(params): Query<GetQueryParams>,
 ) ->Result<Json<Option<Task>>, JobQueueError> {
-    // let sleep_for = Duration::from_secs(1);
-    // for _ in 0..params.timeout {
-    //     let data = queue_service.get_task(task_type = params.task_type);
-    //     if data.len() != 0 {
-    //         return Ok(data);
-    //     }
-    //     tokio::time::sleep(sleep_for).await;
-    // }
+    let sleep_for = Duration::from_secs(1);
+    for _ in 0..params.timeout {
+        let (sender, receiver) = oneshot::channel();
+        state.queue_sender.send(
+            QueuePayload {
+                task: None,
+                task_type: params.task_type.clone(),
+                operation: QueueOperation::Remove,
+                sender_tx: sender
+            }
+        ).await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
+
+        let res = receiver.await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
+
+        match res {
+            Ok(Some(task)) => {
+                return Ok(Json(Some(task)));
+            },
+            Ok(None) => {
+                //no task
+            }
+            Err(e) => {
+                return Err(JobQueueError::UnexpectedError(e.to_string()));
+            }
+        }
+        tokio::time::sleep(sleep_for).await;
+    }
     Ok(Json(None))
 }
 
 
 async fn push_task(
-    Json(payload): Json<Task>
-) -> Result<(), JobQueueError> {
-    dbg!(payload);
-    Ok(())
+    State(state): State<AppState>,
+    Json(payload): Json<Task>,
+) -> Result<StatusCode, JobQueueError> {
+    let (sender, receiver) = oneshot::channel();
+
+    let task_type = match &payload {
+        Task::Ocr { .. } => TaskType::Ocr,
+        Task::Split { .. } => TaskType::Split,
+        Task::Aggregate { .. } => TaskType::Aggregate
+    };
+
+    state.queue_sender.send(
+        QueuePayload { task: Some(payload), task_type, operation: QueueOperation::Insert, sender_tx: sender }
+    ).await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
+
+    let res = receiver.await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
+
+    res.map(|_|StatusCode::OK).map_err(|e| JobQueueError::UnexpectedError(e.to_string()))
 }

@@ -20,7 +20,7 @@ impl TaskQueues {
     }
 }
 
-enum QueueOperation {
+pub enum QueueOperation {
     Insert,
     Remove
 }
@@ -30,10 +30,10 @@ pub type QueueResultPayload = Result<Option<Task>, QueueServiceError>;
 //If Insert operation then we need to send Task, if remove operation then we do not need to send
 //Task, Task will be received
 pub struct QueuePayload {
-    task: Option<Task>,
-    task_type: TaskType,
-    operation: QueueOperation,
-    sender_tx: tokio::sync::oneshot::Sender<QueueResultPayload>
+    pub task: Option<Task>,
+    pub task_type: TaskType,
+    pub operation: QueueOperation,
+    pub sender_tx: tokio::sync::oneshot::Sender<QueueResultPayload>
 }
 
 pub struct QueueService {

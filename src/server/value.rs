@@ -4,7 +4,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::queue_service::service::QueuePayload;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[derive(Eq, Hash, PartialEq)]
 pub enum TaskType {
     Split,
@@ -36,14 +36,16 @@ pub enum Task {
 }
 
 pub enum JobQueueError {
-    UnexpectedError
+    UnexpectedError(String),
+    GetTaskCallFailed
 }
 
 
 impl IntoResponse for JobQueueError {
     fn into_response(self) -> axum::response::Response {
         let body = match self {
-            JobQueueError::UnexpectedError => "UnexpectedError".to_string()
+            JobQueueError::UnexpectedError(e) => "UnexpectedError".to_string() + &e,
+            JobQueueError::GetTaskCallFailed => "Could not call get task".to_string()
         };
         (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
     }
