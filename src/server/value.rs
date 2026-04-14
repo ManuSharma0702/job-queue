@@ -1,4 +1,6 @@
-use axum::{http::StatusCode, response::IntoResponse};
+use std::num::IntErrorKind;
+
+use axum::{extract::path::ErrorKind, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::Sender;
 
@@ -24,15 +26,36 @@ pub struct GetQueryParams {
 pub enum Task {
     Split {
         job_id: String,
-        file_url: String
+        file_url: String,
+        retry_left: u32,
     },
     Ocr {
         job_id: String,
         file_url: String,
-        page_number: u32
+        page_number: u32,
+        retry_left: u32,
     },
     Aggregate  {
-        job_id: String
+        job_id: String,
+        retry_left: u32,
+    }
+}
+
+impl Task {
+    pub fn task_type(&self) -> TaskType {
+        match self {
+            Task::Ocr { .. } => TaskType::Ocr,
+            Task::Split { .. } => TaskType::Split,
+            Task::Aggregate { .. } => TaskType::Aggregate
+        }
+    }
+
+    pub fn get_retry(&self) -> u32 {
+        match self {
+            Task::Ocr { retry_left, .. } => *retry_left,
+            Task::Split { retry_left, .. } => *retry_left,
+            Task::Aggregate { retry_left, .. } => *retry_left
+        }
     }
 }
 

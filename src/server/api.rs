@@ -45,7 +45,7 @@ async fn get_task(
                 task: None,
                 task_type: params.task_type.clone(),
                 operation: QueueOperation::Remove,
-                sender_tx: sender
+                sender_tx: Some(sender)
             }
         ).await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
 
@@ -72,7 +72,6 @@ async fn push_task(
     State(state): State<AppState>,
     Json(payload): Json<Task>,
 ) -> Result<StatusCode, JobQueueError> {
-    let (sender, receiver) = oneshot::channel();
 
     let task_type = match &payload {
         Task::Ocr { .. } => TaskType::Ocr,
@@ -81,10 +80,9 @@ async fn push_task(
     };
 
     state.queue_sender.send(
-        QueuePayload { task: Some(payload), task_type, operation: QueueOperation::Insert, sender_tx: sender }
+        QueuePayload { task: Some(payload), task_type, operation: QueueOperation::Insert, sender_tx: None }
     ).await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
-
-    let res = receiver.await.map_err(|e| JobQueueError::UnexpectedError(e.to_string()))?;
-
-    res.map(|_|StatusCode::OK).map_err(|e| JobQueueError::UnexpectedError(e.to_string()))
+    //TODO: Instead of waiting for response. Immediately send success. Then handle the failure
+    //internally through retry queue.
+    Ok(StatusCode::ACCEPTED)
 }

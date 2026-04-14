@@ -33,7 +33,7 @@ pub struct QueuePayload {
     pub task: Option<Task>,
     pub task_type: TaskType,
     pub operation: QueueOperation,
-    pub sender_tx: tokio::sync::oneshot::Sender<QueueResultPayload>
+    pub sender_tx: Option<tokio::sync::oneshot::Sender<QueueResultPayload>>
 }
 
 pub struct QueueService {
@@ -64,7 +64,9 @@ impl QueueService {
                 QueueOperation::Remove => self.remove(payload.task_type),
             };
 
-            let _ = payload.sender_tx.send(res);
+            if let Some(sender) = payload.sender_tx {
+                let _ = sender.send(res);
+            }
         }
     }
 
@@ -73,22 +75,14 @@ impl QueueService {
     }
 
     fn insert(&mut self, task: Task) -> Result<(), QueueServiceError> {
-        match task {
-            Task::Ocr { job_id, file_url, page_number } => {
-                let ocr_queue = self.queues.get_mut(&TaskType::Ocr).ok_or(QueueServiceError::QueueNotFound)?;
-                //Took ownership of job_id, file_url, page_number then created a new Task to push
-                //into pending queue
-                ocr_queue.pending.push_back(Task::Ocr { job_id, file_url, page_number });
-            }
-            Task::Aggregate { job_id } => {
-                let agg_queue = self.queues.get_mut(&TaskType::Aggregate).ok_or(QueueServiceError::QueueNotFound)?;
-                agg_queue.pending.push_back(Task::Aggregate { job_id });
-            },
-            Task::Split { job_id, file_url } => {
-                let split_queue = self.queues.get_mut(&TaskType::Split).ok_or(QueueServiceError::QueueNotFound)?;
-                split_queue.pending.push_back(Task::Split { job_id, file_url });
-            }
-         }
+        let task_type = task.task_type();
+        let queue = self.queues.get_mut(&task_type).ok_or(QueueServiceError::QueueNotFound)?;
+        let retry_left = task.get_retry();
+        if retry_left == 0 {
+            queue.failed.push_back(task);
+            return Ok(());
+        }
+        queue.pending.push_back(task);
         Ok(())
     }
 
@@ -99,7 +93,6 @@ impl QueueService {
             .ok_or(QueueServiceError::QueueNotFound)?;
 
         let task = queue.pending.pop_front();
-
         //Cannot take ownership of Task fields and pass it to inprogress queue, since we need to return the
         //Task back to the caller
         if let Some(ref t) = task {
