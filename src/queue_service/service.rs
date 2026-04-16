@@ -57,7 +57,15 @@ impl QueueService {
             let res = match payload.operation {
                 QueueOperation::Insert => {
                     match payload.task {
-                        Some(task) => self.insert(task).map(|_| None),
+                        Some(task) => {
+                            match self.insert(task) {
+                                Ok(_) => Ok(None),
+                                Err(e) => {
+                                    eprintln!("Error while inserting into queue {}", e);
+                                    Err(e)
+                                }
+                            }
+                        }
                         None => Err(QueueServiceError::NoTaskFoundToInsert),
                     }
                 }
