@@ -4,7 +4,7 @@ use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use uuid::Uuid;
 
-use crate::{queue_service::value::QueueServiceError, server::value::{JobQueueError, Task, TaskType}};
+use crate::{queue_service::value::QueueServiceError, server::value::{Task, TaskType}};
 
 pub struct TaskQueues {
     pending: VecDeque<Task>,
