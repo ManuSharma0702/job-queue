@@ -1,5 +1,6 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use tokio::sync::mpsc::Sender;
 
 use crate::queue_service::service::QueuePayload;
@@ -48,6 +49,15 @@ impl Task {
         }
     }
 
+    pub fn job_id(&self) -> &String {
+        match self {
+            Task::Ocr { job_id, .. } => job_id,
+            Task::Split { job_id, .. } => job_id,
+            Task::Aggregate { job_id, .. } => job_id
+        }
+
+    }
+
     pub fn get_retry(&self) -> u32 {
         match self {
             Task::Ocr { retry_left, .. } => *retry_left,
@@ -75,5 +85,6 @@ impl IntoResponse for JobQueueError {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub queue_sender: Sender<QueuePayload>
+    pub queue_sender: Sender<QueuePayload>,
+    pub db_conn: Pool<Postgres>
 }

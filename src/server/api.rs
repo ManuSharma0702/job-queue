@@ -1,5 +1,7 @@
-use std::{error::Error, time::Duration};
+use std::{env, error::Error, time::Duration};
 use axum::{Json, Router, extract::{Query, State}, http::StatusCode, routing::{get, post}};
+use dotenvy::dotenv;
+use sqlx::postgres::PgPoolOptions;
 use tokio::sync::oneshot;
 
 use crate::{queue_service::service::{QueueOperation, QueuePayload, QueueService}, server::value::{AppState, GetQueryParams, JobQueueError, Task, TaskType}};
@@ -7,14 +9,23 @@ use crate::{queue_service::service::{QueueOperation, QueuePayload, QueueService}
 pub async fn run() -> Result<(), Box<dyn Error>> {
     //Initialise queue service, with three queue for each task type.
     //Pass the queue service as a state
-    let mut qs = QueueService::new();
+    dotenv().ok();
+
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let db = PgPoolOptions::new()
+        .connect(&db_url)
+        .await
+        .expect("Failed to connect to DB");
+
+    let mut qs = QueueService::new(db.clone());
     let sender = qs.get_sender();
     tokio::spawn(async move {
         qs.execute().await;
     });
 
     let state = AppState {
-        queue_sender: sender
+        queue_sender: sender,
+        db_conn: db
     };
 
     let app = Router::new()

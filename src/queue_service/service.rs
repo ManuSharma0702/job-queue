@@ -1,8 +1,10 @@
-use std::collections::{HashMap, VecDeque};
+use std::{collections::{HashMap, VecDeque}, str::FromStr};
 
+use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use uuid::Uuid;
 
-use crate::{queue_service::value::QueueServiceError, server::value::{Task, TaskType}};
+use crate::{queue_service::value::QueueServiceError, server::value::{JobQueueError, Task, TaskType}};
 
 pub struct TaskQueues {
     pending: VecDeque<Task>,
@@ -39,17 +41,18 @@ pub struct QueuePayload {
 pub struct QueueService {
     queues: HashMap<TaskType, TaskQueues>,
     queue_service_tx: Sender<QueuePayload>,
-    queue_service_rx: Receiver<QueuePayload>
+    queue_service_rx: Receiver<QueuePayload>,
+    db_conn: Pool<Postgres>
 }
 
 impl QueueService {
-    pub fn new() -> Self {
+    pub fn new(db: Pool<Postgres>) -> Self {
         let mut hashmap = HashMap::new();
         let (sender, receiver) = mpsc::channel(1024);
         hashmap.insert(TaskType::Ocr, TaskQueues::new());
         hashmap.insert(TaskType::Split, TaskQueues::new());
         hashmap.insert(TaskType::Aggregate, TaskQueues::new());
-        Self { queues: hashmap, queue_service_tx: sender, queue_service_rx: receiver }
+        Self { queues: hashmap, queue_service_tx: sender, queue_service_rx: receiver, db_conn: db }
     }
 
     pub async fn execute(&mut self) {
@@ -58,7 +61,7 @@ impl QueueService {
                 QueueOperation::Insert => {
                     match payload.task {
                         Some(task) => {
-                            match self.insert(task) {
+                            match self.insert(task).await {
                                 Ok(_) => Ok(None),
                                 Err(e) => {
                                     eprintln!("Error while inserting into queue {}", e);
@@ -82,16 +85,28 @@ impl QueueService {
         self.queue_service_tx.clone()
     }
 
-    fn insert(&mut self, task: Task) -> Result<(), QueueServiceError> {
+    async fn insert(&mut self, task: Task) -> Result<(), QueueServiceError> {
         let task_type = task.task_type();
-        let queue = self.queues.get_mut(&task_type).ok_or(QueueServiceError::QueueNotFound)?;
         let retry_left = task.get_retry();
+
         if retry_left == 0 {
-            //TODO: Update the status of task in DB to failed
-            queue.failed.push_back(task);
+            self.fail_job(&task.job_id()).await?;
+
+            {
+                let queue = self.queues.get_mut(&task_type)
+                    .ok_or(QueueServiceError::QueueNotFound)?;
+                queue.failed.push_back(task);
+            }
+
             return Ok(());
         }
-        queue.pending.push_back(task);
+
+        {
+            let queue = self.queues.get_mut(&task_type)
+                .ok_or(QueueServiceError::QueueNotFound)?;
+            queue.pending.push_back(task);
+        }
+
         Ok(())
     }
 
@@ -111,10 +126,23 @@ impl QueueService {
         Ok(task)
     }
 
+    async fn fail_job(&mut self, job_id: &str) -> Result<(), QueueServiceError> {
+        let d = Uuid::from_str(&job_id)
+            .map_err(|e| QueueServiceError::InvalidUuid)?;
+    
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET status = 'dead'
+            where id = $1
+            "#
+        )
+        .bind(d)
+        .execute(&self.db_conn)
+        .await
+        .map_err(|e| QueueServiceError::DbFailure(e.to_string()))?;
+        Ok(())
+    }
+
 }
 
-impl Default for QueueService {
-    fn default() -> Self {
-        Self::new()
-    }
-}

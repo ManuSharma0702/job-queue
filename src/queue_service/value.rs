@@ -5,6 +5,8 @@ pub enum QueueServiceError {
     UnableToInsert,
     QueueNotFound,
     NoTaskFoundToInsert,
+    DbFailure(String),
+    InvalidUuid
 }
 
 impl Display for QueueServiceError {
@@ -18,6 +20,12 @@ impl Display for QueueServiceError {
             }
             QueueServiceError::UnableToInsert => {
                 write!(f, "Not Able to insert")
+            }
+            QueueServiceError::DbFailure(e) => {
+                write!(f, "DB error {}", e)
+            }
+            QueueServiceError::InvalidUuid => {
+                write!(f, "Invalid uuid")
             }
         }
     }
