@@ -1,6 +1,6 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc::Sender;
 
 use crate::queue_service::service::QueuePayload;
