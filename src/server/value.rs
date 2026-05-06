@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc::Sender;
 
-use crate::queue_service::service::QueuePayload;
+use crate::queue_service::{service::QueuePayload, value::QueueServiceError};
 
 #[derive(Deserialize, Debug, Clone)]
 #[derive(Eq, Hash, PartialEq)]
@@ -63,6 +63,56 @@ impl Task {
             Task::Ocr { retry_left, .. } => *retry_left,
             Task::Split { retry_left, .. } => *retry_left,
             Task::Aggregate { retry_left, .. } => *retry_left
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), QueueServiceError> {
+        match self {
+            Task::Split { job_id, file_url, .. } => {
+                if job_id.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing job_id".into()
+                        )
+                    )
+                }
+                if file_url.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing file_url".into()
+                        )
+                    );
+                }
+                Ok(()) 
+            }
+            Task::Ocr { job_id, file_url, .. } => {
+                if job_id.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing job_id".into()
+                        )
+                    );
+                }
+                if file_url.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing file_url".into()
+                        )
+                    );
+                }
+                Ok(())
+            }
+            Task::Aggregate { job_id, .. } => {
+                if job_id.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing job_id".into()
+                        )
+                    );
+                }
+                Ok(())
+            }
+            
         }
     }
 }

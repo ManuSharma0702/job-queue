@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{write, Display, Formatter, Result};
 
 #[derive(Debug)]
 pub enum QueueServiceError {
@@ -6,7 +6,8 @@ pub enum QueueServiceError {
     QueueNotFound,
     NoTaskFoundToInsert,
     DbFailure(String),
-    InvalidUuid
+    InvalidUuid,
+    InvalidTask(String)
 }
 
 impl Display for QueueServiceError {
@@ -26,6 +27,9 @@ impl Display for QueueServiceError {
             }
             QueueServiceError::InvalidUuid => {
                 write!(f, "Invalid uuid")
+            }
+            QueueServiceError::InvalidTask(e) => {
+                write!(f, "Error in Task validation: {}", e)
             }
         }
     }

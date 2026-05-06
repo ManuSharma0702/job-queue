@@ -86,6 +86,7 @@ impl QueueService {
     }
 
     async fn insert(&mut self, task: Task) -> Result<(), QueueServiceError> {
+        task.validate()?;
         let task_type = task.task_type();
         let retry_left = task.get_retry();
 
