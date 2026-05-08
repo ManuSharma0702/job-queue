@@ -33,10 +33,12 @@ pub enum Task {
         file_url: String,
         page_number: u32,
         retry_left: u32,
+        root_job_id: String
     },
     Aggregate  {
         job_id: String,
         retry_left: u32,
+        root_job_id: String
     }
 }
 
@@ -85,7 +87,7 @@ impl Task {
                 }
                 Ok(()) 
             }
-            Task::Ocr { job_id, file_url, .. } => {
+            Task::Ocr { job_id, file_url, root_job_id, .. } => {
                 if job_id.is_empty() {
                     return Err(
                         QueueServiceError::InvalidTask(
@@ -100,13 +102,27 @@ impl Task {
                         )
                     );
                 }
+                if root_job_id.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing root_job_id".into()
+                        )
+                    );
+                }
                 Ok(())
             }
-            Task::Aggregate { job_id, .. } => {
+            Task::Aggregate { job_id, root_job_id, .. } => {
                 if job_id.is_empty() {
                     return Err(
                         QueueServiceError::InvalidTask(
                             "Missing job_id".into()
+                        )
+                    );
+                }
+                if root_job_id.is_empty() {
+                    return Err(
+                        QueueServiceError::InvalidTask(
+                            "Missing root_job_id".into()
                         )
                     );
                 }
